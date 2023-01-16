@@ -191,22 +191,26 @@ public:
     template <PolyOrder P>
     void get_phi()
     {
-        DP xn, yn, zn;
-        if (P > poly0)
+        if (P == poly1)
         {
             DP xn = 2 * DP(x - C[0]) / L[0];
             DP yn = 2 * DP(y - C[1]) / L[1];
             DP zn = 2 * DP(z - C[2]) / L[2];
-            // DP xn = DP(x - C[0]);
-            // DP yn = DP(y - C[1]);
-            // DP zn = DP(z - C[2]);
 
             phi[1] = xn;
             phi[2] = yn;
             phi[3] = zn;
         }
-        if (P > poly1)
+        if (P == poly2)
         {
+            DP xn = 2 * DP(x - C[0]) / L[0];
+            DP yn = 2 * DP(y - C[1]) / L[1];
+            DP zn = 2 * DP(z - C[2]) / L[2];
+
+            phi[1] = xn;
+            phi[2] = yn;
+            phi[3] = zn;
+
             phi[4] = xn * xn;
             phi[5] = yn * yn;
             phi[6] = zn * zn;
@@ -389,7 +393,6 @@ void mexFunction(int nlhs, mxArray *plhs[],
     {
         Nthreads = std::thread::hardware_concurrency();
     }
-    // mexPrintf("Nthreads %d\n",Nthreads);
 
     // all should be 3D arrays
     if (f_dims != 3)

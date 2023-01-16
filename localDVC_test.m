@@ -1,5 +1,9 @@
 clear; close all
 
+
+% Compiling
+% -------------------------------
+
 if true
     % debug = '-g';
     debug = '';
@@ -9,11 +13,11 @@ if true
 
 end
 
-
-addpath(correli_pathdef)
+% Reading some test images
+% -------------------------------
 
 % Define the path to the images
-imagepath = fullfile('virtimage3D');
+imagepath = 'virtimage3D';
 imagefiles = dir(fullfile(imagepath, '*.raw'));
 imagefiles = {imagefiles.name}';
 images = strcat(imagepath, filesep, imagefiles);
@@ -21,64 +25,44 @@ images = strcat(imagepath, filesep, imagefiles);
 refimage = images{1};
 defimage = images{2};
 
-if true
-    % Load the images
-    f = raw_read(refimage);
-    g = raw_read(defimage);
+siz = [160, 160, 160];
 
-    % convert to floating point
-    f = single(f);
-    g = single(g);
+fid = fopen(refimage, 'r');
+f = fread(fid, inf, '*uint8', 0);
+fclose(fid);
+fid = fopen(defimage, 'r');
+g = fread(fid, inf, '*uint8', 0);
+fclose(fid);
 
-else
-    siz = [160, 160, 160];
+f = reshape(f, siz);
+g = reshape(g, siz);
 
-    f = zeros(siz,'single');
-    g = ones(siz,'single');
+% convert to floating point
+f = single(f);
+g = single(g);
 
-%     x = single(linspace(-1,1,siz(2)));
-%     f = repmat(x, siz(1), 1, siz(3));
-%     y = single(linspace(-1,1,siz(1)));
-%     f = repmat(y(:), 1, siz(2), siz(3));
-    z = single(linspace(-1,1,siz(3)));
-    f = repmat(permute(z, [3,1,2]), siz(1), siz(2), 1);
-    g = f + 10;
-end
+f = f ./ 255;
+g = g ./ 255;
 
-
-siz = size(f);
-
-% f = f ./ 255;
-% g = g ./ 255;
-
-% -------------------------------
-mar = 10;
-x = mesh_linspace(1+mar, siz(2)-mar, 2);
-y = mesh_linspace(1+mar, siz(1)-mar, 2);
-z = mesh_linspace(1+mar, siz(3)-mar, 2);
-Mesh = mesh_gen_structured(x,y,z,'T4');
-
-tic
-init = zeros(8,3);
-[cor.a, cor.r, cor.R, cor.stat] = correlate(f,g,Mesh,init);
-toc
-
-
+% Subset definition
 % -------------------------------
 
 C = round(siz./2) + [3,4,5];
 L = 51 * [1, 1, 1];
 threads = 0;
 
-Ndof = 4;
-a = zeros( 3 * Ndof,1);
-% a(1:3) = mean(cor.a);
+% number of dof (1: order0, 4: order1, 10: order2)
+Ndof = 10;
 
+% initial guess
+a = zeros( 3 * Ndof,1);
+
+% The equivalent code in Matlab (to verify)
+% -------------------------------
 Ix = 1:3:3*Ndof;
 Iy = 2:3:3*Ndof;
 Iz = 3:3:3*Ndof;
 
-% -------------------------------
 tic
 x = (C(1) - ((L(1) - 1) / 2) + (0:L(1)-1));
 y = (C(2) - ((L(2) - 1) / 2) + (0:L(2)-1));
@@ -86,9 +70,6 @@ z = (C(3) - ((L(3) - 1) / 2) + (0:L(3)-1));
 
 [X, Y, Z] = meshgrid(1:siz(2),1:siz(1),1:siz(3));
 
-% Xn = X - C(1);
-% Yn = Y - C(2);
-% Zn = Z - C(3);
 Xn = 2 * (X - C(1)) ./ L(1);
 Yn = 2 * (Y - C(2)) ./ L(2);
 Zn = 2 * (Z - C(3)) ./ L(3);
@@ -162,61 +143,52 @@ figure;
 imagesc(log10(abs(M1)))
 colorbar
 
-% fprintf('%12d, [%3d,%3d,%3d], %6.1f, %6.1f, [%6.1f, %6.1f, %6.1f]\n',[find(roi)-1, X(roi)-1, Y(roi)-1, Z(roi)-1, f(roi), R(roi), fx(roi), fy(roi), fz(roi)].');
+% Speed testing the C++ code
+% -------------------------------
 
-%% -------------------------------
+% first run of a newly compiled code is not cached yet
+[M2, b2, r] = localDVC_kernel(f, g, a, C, L, threads);
 
-
-
+% runtime without computing the residual image
 tic
 [M2, b2, r] = localDVC_kernel(f, g, a, C, L, threads);
 toc
 
-tic
-[M2, b2, r] = localDVC_kernel(f, g, a, C, L, threads);
-toc
-
+% runtime with computing the residual image
 tic
 [M2, b2, r, R] = localDVC_kernel(f, g, a, C, L, threads);
 toc
 
-ortho_view(R)
-
 disp([M2, b2]);
 disp(r);
-figure;
-imagesc(log10(abs(M2)))
-colorbar
 
-%% -----------------------------------
-
+% Example DVC code
+% -------------------------------
 
 maxit = 10;
 convcrit = 1e-4;
 
 rm = Inf;
 for it = 1:maxit
-
+    % update M and b for current a
     [M, b, r] = localDVC_kernel(f, g, a, C, L, threads);
 
+    % compute the update in a
     da = M \ b;
 
+    % update the degrees of freedom
     a = a + da;
 
+    % some output to the screen
     dr = r - rm;
     rm = r;
-
     fprintf('it:%3d, r:%10.3e, dr:%10.3e, |da|:%10.3e\n',it,r,dr,rms(da));
 
-
+    % convergence test
     if rms(da) < convcrit
         fprintf('converged\n\n');
         break
     end
-
-
 end
 
-
-[M, b, r, R] = localDVC_kernel(f, g, a, C, L, threads);
-ortho_view(R)
+disp(a)
