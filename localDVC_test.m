@@ -48,7 +48,7 @@ g = g ./ 255;
 % -------------------------------
 
 C = round(siz./2) + [3,4,5];
-L = 51 * [1, 1, 1];
+L = 15 * [1, 1, 1];
 threads = 0;
 
 % number of dof (1: order0, 4: order1, 10: order2)
@@ -59,14 +59,19 @@ a = zeros( 3 * Ndof,1);
 
 % The equivalent code in Matlab (to verify)
 % -------------------------------
+tic
+
 Ix = 1:3:3*Ndof;
 Iy = 2:3:3*Ndof;
 Iz = 3:3:3*Ndof;
 
-tic
 x = (C(1) - ((L(1) - 1) / 2) + (0:L(1)-1));
 y = (C(2) - ((L(2) - 1) / 2) + (0:L(2)-1));
 z = (C(3) - ((L(3) - 1) / 2) + (0:L(3)-1));
+
+x = x( x > 1 & x < siz(2) );
+y = y( y > 1 & y < siz(1) );
+z = z( z > 1 & z < siz(3) );
 
 [X, Y, Z] = meshgrid(1:siz(2),1:siz(1),1:siz(3));
 
@@ -112,7 +117,6 @@ gt = interp3(X, Y, Z, g, X(roi) + Ux, Y(roi) + Uy, Z(roi) + Uz, 'cubic');
 res = f(roi) - gt;
 R = nan(siz);
 R(roi) = res;
-ortho_view(R);
 
 Lx = fx(roi) .* phi(roi,:);
 Ly = fy(roi) .* phi(roi,:);
@@ -137,12 +141,6 @@ M1(Iz,Iy) = Lz.' * Ly;
 M1(Iz,Iz) = Lz.' * Lz;
 toc
 
-disp([ M1, b1] );
-disp(rms(res));
-figure;
-imagesc(log10(abs(M1)))
-colorbar
-
 % Speed testing the C++ code
 % -------------------------------
 
@@ -158,9 +156,6 @@ toc
 tic
 [M2, b2, r, R] = localDVC_kernel(f, g, a, C, L, threads);
 toc
-
-disp([M2, b2]);
-disp(r);
 
 % Example DVC code
 % -------------------------------
@@ -191,4 +186,4 @@ for it = 1:maxit
     end
 end
 
-disp(a)
+disp(a(1:3))
