@@ -58,13 +58,9 @@ enum PolyOrder
 
 // ------------------------------
 // the main class to hold all the threaded data and its related member functions
-// this includes:
-// - image reading functions like interpolation
-// - digital image correlation functions
 template <typename FP, typename DP, typename SI> // FloatPrecision (FP) DoublePrecision (DP), SignedInteger (SI)
 class ThreadData
 {
-    // std::mutex mutex;
 public:
     // each thread will work on their local M and b, which will be summed
     // outside of the threaded workload.
@@ -226,13 +222,7 @@ public:
     void dic(SI o)
     {
         // row col indices
-        SI i, j, k;
-        f.ind2sub(i, j, k, o);
-
-        // current coordinates (in ML def)
-        x = j;
-        y = i;
-        z = k;
+        f.ind2sub(y, x, z, o);
 
         // prepare the shapefunctions
         get_phi<P>();
@@ -274,7 +264,6 @@ public:
 
         // Hessian and right hand member
         get_Mb();
-        // mexPrintf("o:%12d, [%3d,%3d,%3d], %6.1f, %6.1f, [%6.1f,%6.1f,%6.1f]\n",o,x,y,z,f.get_val(o),res,grad[0],grad[1],grad[2]);
 
         // update RMS
         rr += res * res;
@@ -464,7 +453,6 @@ void mexFunction(int nlhs, mxArray *plhs[],
 
     // maximum number of pixels in each list:
     int_t N = int_t(double(L[0] * L[1] * L[2]) / double(Nthreads)) + L[1];
-    // mexPrintf("max thread size %d\n",N);
 
     // fill thread data
     for (int t = 0; t < Nthreads; t++)
